@@ -1,0 +1,51 @@
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfplan
+*.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Lambda build artifacts
+lambda/.dist/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Python
+.venv/
+venv/
+env/
+*.env
+.python-version
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+test-results/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# AWS
+.aws-sam/
+samconfig.toml
+
+# Secrets — never commit
+secrets.json
+*.pem
+*.key
+credentials

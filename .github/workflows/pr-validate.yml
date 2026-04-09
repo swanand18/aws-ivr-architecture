@@ -1,0 +1,38 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate:
+    name: PR Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check PR title follows conventional commits
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            chore
+            docs
+            refactor
+            test
+            ci
+
+      - name: Check for large files
+        run: |
+          find . -size +5M -not -path './.git/*' -not -path './lambda/.dist/*' \
+            | grep . && { echo "Large files detected"; exit 1; } || echo "OK"
+
+      - name: Validate contact flow JSON
+        run: |
+          for f in contact-flows/*.json; do
+            python3 -c "import json,sys; json.load(open('$f'))" && echo "$f OK" \
+              || { echo "$f INVALID JSON"; exit 1; }
+          done

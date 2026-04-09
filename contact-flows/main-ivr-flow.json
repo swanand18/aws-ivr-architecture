@@ -1,0 +1,178 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "invoke-ivr-handler",
+  "Metadata": {
+    "entryPointPosition": { "x": 40, "y": 40 },
+    "ActionMetadata": {}
+  },
+  "Actions": [
+    {
+      "Identifier": "invoke-ivr-handler",
+      "Type": "InvokeLambdaFunction",
+      "Parameters": {
+        "LambdaFunctionARN": "$.Attributes.IvrHandlerArn",
+        "InvocationTimeLimitSeconds": "8",
+        "LambdaInvocationAttributes": {
+          "PhoneNumber": "$.CustomerEndpoint.Address"
+        },
+        "ResponseValidation": { "ResponseType": "JSON" }
+      },
+      "Transitions": {
+        "NextAction": "check-vip",
+        "Errors": [{ "NextAction": "play-error-prompt", "ErrorType": "NoMatchingError" }],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "check-vip",
+      "Type": "CheckAttribute",
+      "Parameters": {
+        "Attribute": "VIP",
+        "Operator": "Equals",
+        "Value": "TRUE"
+      },
+      "Transitions": {
+        "NextAction": "play-main-menu",
+        "Errors": [],
+        "Conditions": [
+          { "NextAction": "route-to-vip-queue", "Condition": { "Operator": "Equals", "Operand": "True" } }
+        ]
+      }
+    },
+    {
+      "Identifier": "route-to-vip-queue",
+      "Type": "SetContactAttributes",
+      "Parameters": {
+        "Attributes": {
+          "TargetQueue": "VIPQueue",
+          "GreetingPrompt": "prompts/greeting-vip.mp3"
+        }
+      },
+      "Transitions": {
+        "NextAction": "play-greeting",
+        "Errors": [],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "play-greeting",
+      "Type": "MessageParticipant",
+      "Parameters": {
+        "Text": "Thank you for calling. As one of our valued customers, you will be connected to a dedicated agent shortly.",
+        "TextToSpeechType": "text",
+        "LanguageCode": "en-IN"
+      },
+      "Transitions": {
+        "NextAction": "transfer-to-queue",
+        "Errors": [{ "NextAction": "play-main-menu", "ErrorType": "NoMatchingError" }],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "play-main-menu",
+      "Type": "GetParticipantInput",
+      "Parameters": {
+        "Text": "Welcome to our support centre. For billing, press 1. For technical support, press 2. For sales, press 3. To speak to an operator, press 0. To schedule a callback, press 9.",
+        "TextToSpeechType": "text",
+        "LanguageCode": "en-IN",
+        "Prompts": [],
+        "MaxDigits": "1",
+        "InputTimeLimitSeconds": "10"
+      },
+      "Transitions": {
+        "NextAction": "invoke-menu-router",
+        "Errors": [
+          { "NextAction": "invoke-menu-router", "ErrorType": "InputTimeLimitExceeded" },
+          { "NextAction": "invoke-menu-router", "ErrorType": "NoMatchingError" }
+        ],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "invoke-menu-router",
+      "Type": "InvokeLambdaFunction",
+      "Parameters": {
+        "LambdaFunctionARN": "$.Attributes.MenuRouterArn",
+        "InvocationTimeLimitSeconds": "8",
+        "LambdaInvocationAttributes": {
+          "DTMFInput":   "$.StoredCustomerInput",
+          "MenuId":      "MAIN_MENU",
+          "RetryCount":  "$.Attributes.RetryCount"
+        },
+        "ResponseValidation": { "ResponseType": "JSON" }
+      },
+      "Transitions": {
+        "NextAction": "check-routing-action",
+        "Errors": [{ "NextAction": "transfer-to-queue", "ErrorType": "NoMatchingError" }],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "check-routing-action",
+      "Type": "CheckAttribute",
+      "Parameters": {
+        "Attribute": "$.External.Action",
+        "Operator": "Equals",
+        "Value": "QUEUE"
+      },
+      "Transitions": {
+        "NextAction": "transfer-to-queue",
+        "Errors": [],
+        "Conditions": [
+          { "NextAction": "transfer-to-queue",   "Condition": { "Operator": "Equals", "Operand": "QUEUE" } },
+          { "NextAction": "start-callback-flow", "Condition": { "Operator": "Equals", "Operand": "CALLBACK" } },
+          { "NextAction": "transfer-to-queue",   "Condition": { "Operator": "Equals", "Operand": "TRANSFER" } },
+          { "NextAction": "play-main-menu",      "Condition": { "Operator": "Equals", "Operand": "REPROMPT" } },
+          { "NextAction": "disconnect",          "Condition": { "Operator": "Equals", "Operand": "HANGUP" } }
+        ]
+      }
+    },
+    {
+      "Identifier": "start-callback-flow",
+      "Type": "TransferToFlow",
+      "Parameters": {
+        "ContactFlowId": "$.Attributes.CallbackFlowId"
+      },
+      "Transitions": {
+        "NextAction": "disconnect",
+        "Errors": [{ "NextAction": "transfer-to-queue", "ErrorType": "NoMatchingError" }],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "transfer-to-queue",
+      "Type": "TransferContactToQueue",
+      "Parameters": {
+        "QueueId": "$.Attributes.PreferredQueue"
+      },
+      "Transitions": {
+        "NextAction": "disconnect",
+        "Errors": [
+          { "NextAction": "play-error-prompt", "ErrorType": "QueueAtCapacity" },
+          { "NextAction": "play-error-prompt", "ErrorType": "NoMatchingError" }
+        ],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "play-error-prompt",
+      "Type": "MessageParticipant",
+      "Parameters": {
+        "Text": "We are experiencing high call volume. Please call back shortly or press 9 to schedule a callback.",
+        "TextToSpeechType": "text",
+        "LanguageCode": "en-IN"
+      },
+      "Transitions": {
+        "NextAction": "disconnect",
+        "Errors": [],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "disconnect",
+      "Type": "DisconnectParticipant",
+      "Parameters": {},
+      "Transitions": {}
+    }
+  ]
+}

@@ -1,0 +1,137 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "get-callback-number",
+  "Metadata": { "entryPointPosition": { "x": 40, "y": 40 } },
+  "Actions": [
+    {
+      "Identifier": "get-callback-number",
+      "Type": "GetParticipantInput",
+      "Parameters": {
+        "Text": "To confirm a callback on your current number, press 1. To enter a different number, press 2.",
+        "TextToSpeechType": "text",
+        "LanguageCode": "en-IN",
+        "MaxDigits": "1",
+        "InputTimeLimitSeconds": "10"
+      },
+      "Transitions": {
+        "NextAction": "check-number-choice",
+        "Errors": [{ "NextAction": "use-ani", "ErrorType": "InputTimeLimitExceeded" }],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "check-number-choice",
+      "Type": "CheckAttribute",
+      "Parameters": {
+        "Attribute": "$.StoredCustomerInput",
+        "Operator": "Equals",
+        "Value": "1"
+      },
+      "Transitions": {
+        "NextAction": "use-ani",
+        "Errors": [],
+        "Conditions": [
+          { "NextAction": "use-ani",         "Condition": { "Operator": "Equals", "Operand": "1" } },
+          { "NextAction": "get-alt-number",  "Condition": { "Operator": "Equals", "Operand": "2" } }
+        ]
+      }
+    },
+    {
+      "Identifier": "use-ani",
+      "Type": "SetContactAttributes",
+      "Parameters": {
+        "Attributes": {
+          "CallbackPhone": "$.CustomerEndpoint.Address"
+        }
+      },
+      "Transitions": {
+        "NextAction": "invoke-callback-scheduler",
+        "Errors": [],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "get-alt-number",
+      "Type": "GetParticipantInput",
+      "Parameters": {
+        "Text": "Please enter your 10-digit callback number followed by the hash key.",
+        "TextToSpeechType": "text",
+        "LanguageCode": "en-IN",
+        "MaxDigits": "10",
+        "InputTimeLimitSeconds": "15"
+      },
+      "Transitions": {
+        "NextAction": "set-alt-callback",
+        "Errors": [{ "NextAction": "use-ani", "ErrorType": "InputTimeLimitExceeded" }],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "set-alt-callback",
+      "Type": "SetContactAttributes",
+      "Parameters": {
+        "Attributes": {
+          "CallbackPhone": "$.StoredCustomerInput"
+        }
+      },
+      "Transitions": {
+        "NextAction": "invoke-callback-scheduler",
+        "Errors": [],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "invoke-callback-scheduler",
+      "Type": "InvokeLambdaFunction",
+      "Parameters": {
+        "LambdaFunctionARN": "$.Attributes.CallbackSchedulerArn",
+        "InvocationTimeLimitSeconds": "8",
+        "LambdaInvocationAttributes": {
+          "PhoneNumber":  "$.Attributes.CallbackPhone",
+          "CustomerName": "$.Attributes.CustomerName",
+          "Intent":       "$.Attributes.Intent"
+        },
+        "ResponseValidation": { "ResponseType": "JSON" }
+      },
+      "Transitions": {
+        "NextAction": "confirm-callback",
+        "Errors": [{ "NextAction": "callback-error", "ErrorType": "NoMatchingError" }],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "confirm-callback",
+      "Type": "MessageParticipant",
+      "Parameters": {
+        "Text": "Your callback has been scheduled. An agent will call you within 30 minutes. Thank you for your patience. Goodbye.",
+        "TextToSpeechType": "text",
+        "LanguageCode": "en-IN"
+      },
+      "Transitions": {
+        "NextAction": "disconnect",
+        "Errors": [],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "callback-error",
+      "Type": "MessageParticipant",
+      "Parameters": {
+        "Text": "We were unable to schedule your callback at this time. Please call back shortly. We apologise for the inconvenience.",
+        "TextToSpeechType": "text",
+        "LanguageCode": "en-IN"
+      },
+      "Transitions": {
+        "NextAction": "disconnect",
+        "Errors": [],
+        "Conditions": []
+      }
+    },
+    {
+      "Identifier": "disconnect",
+      "Type": "DisconnectParticipant",
+      "Parameters": {},
+      "Transitions": {}
+    }
+  ]
+}
